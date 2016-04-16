@@ -1,0 +1,14 @@
+{
+  "name": "test-promises",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "Torsten Stüber",
+  "license": "ISC",
+  "devDependencies": {
+    "promises-aplus-tests": "^2.1.1"
+  },
+  "scripts": {
+    "test": "promises-aplus-tests index"
+  }
+}
