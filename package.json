@@ -10,5 +10,8 @@
   },
   "scripts": {
     "test": "promises-aplus-tests index"
+  },
+  "dependencies": {
+    "typescript": "^1.8.10"
   }
 }

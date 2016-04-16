@@ -1,33 +1,50 @@
-"use strict";
-var State;
-(function (State) {
-    State[State["PENDING"] = 0] = "PENDING";
-    State[State["FULFILLED"] = 1] = "FULFILLED";
-    State[State["REJECTED"] = 2] = "REJECTED";
-})(State || (State = {}));
+
+
+enum State {
+    PENDING,
+    FULFILLED,
+    REJECTED
+}
+
 function isFunction(f) {
     return typeof f === 'function';
 }
+
 function isObject(o) {
     return o && typeof o === 'object';
 }
+
 function invokeAsynch(handler, arg) {
-    setTimeout(function () {
+    setTimeout(function() {
         handler(arg);
-    }, 0);
+    }, 0)
 }
-var Tomise = (function () {
-    function Tomise(callback) {
+
+interface Thenable<T> {
+    then<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Thenable<U>;
+}
+
+class Tomise<T> implements Thenable<T> {
+
+    state: State;
+    value: T;
+    reason: any;
+    fulfilledHandlers: ((value: T) => void)[];
+    rejectedHandlers: ((reason: any) => void)[];
+
+    constructor(callback: (resolve : (value?: T | Thenable<T>) => void, reject: (error?: any) => void) => void) {
         this.state = State.PENDING;
         this.value = null;
         this.reason = null;
         this.fulfilledHandlers = [];
         this.rejectedHandlers = [];
+
         if (callback) {
             callback(this.Resolve.bind(this), this.reject.bind(this));
         }
     }
-    Tomise.prototype.reject = function (reason) {
+
+    reject(reason) {
         if (this.state === State.PENDING) {
             this.state = State.REJECTED;
             this.reason = reason;
@@ -36,123 +53,126 @@ var Tomise = (function () {
                 invokeAsynch(handler, this.reason);
             }
         }
-    };
-    Tomise.prototype.Resolve = function (valueOrThenable) {
-        var _this = this;
+    }
+
+    Resolve(valueOrThenable: T | Thenable<T>) {
         if (this === valueOrThenable) {
             this.reject(new TypeError());
             return;
         }
+
         if (isObject(valueOrThenable) || isFunction(valueOrThenable)) {
             var callHappened = false;
             try {
-                var then = valueOrThenable.then;
+                var then: <U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>) => Thenable<U> = (<Thenable<T>>valueOrThenable).then;
                 if (isFunction(then)) {
-                    then.call(valueOrThenable, function (y) {
+                    then.call(valueOrThenable, (y: T) => {
                         if (!callHappened) {
-                            _this.Resolve(y);
+                            this.Resolve(y);
                             callHappened = true;
                         }
-                    }, function (r) {
+                    }, (r: any) => {
                         if (!callHappened) {
-                            _this.reject(r);
+                            this.reject(r);
                             callHappened = true;
                         }
                     });
                     return;
                 }
-            }
-            catch (er) {
+            } catch (er) {
                 if (!callHappened) {
                     this.reject(er);
                 }
                 return;
             }
         }
+
         if (this.state === State.PENDING) {
             this.state = State.FULFILLED;
-            this.value = valueOrThenable;
+            this.value = <T>valueOrThenable;
             while (this.fulfilledHandlers.length) {
                 var handler = this.fulfilledHandlers.shift();
                 invokeAsynch(handler, this.value);
             }
         }
-    };
-    Tomise.prototype.then = function (onFulfilled, onRejected) {
-        var promise2Resolve;
-        var promise2Reject;
-        var promise2 = new Tomise(function (resolve, reject) {
+    }
+
+    then<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Tomise<T | U> {
+        var promise2Resolve: (value?: T | U | Thenable<T | U>) => void;
+        var promise2Reject: (error?: any) => void;
+
+        var promise2 = new Tomise<T | U>(function(resolve, reject) {
             promise2Resolve = resolve;
             promise2Reject = reject;
         });
-        var newFulfilledHandler = function wrapper(value) {
+
+        var newFulfilledHandler = function wrapper(value: T) {
             if (isFunction(onFulfilled)) {
                 try {
-                    var x = onFulfilled(value);
-                }
-                catch (er) {
+                    var x: U | Thenable<U> = onFulfilled(value);
+                } catch (er) {
                     promise2Reject(er);
                     return;
                 }
+
                 promise2.Resolve(x);
-            }
-            else {
+            } else {
                 promise2Resolve(value);
             }
         };
-        var newRejectedHandler = function wrapper(reason) {
+
+        var newRejectedHandler = function wrapper(reason: any) {
             if (isFunction(onRejected)) {
                 try {
-                    var x = onRejected(reason);
-                }
-                catch (er) {
+                    var x: U | Thenable<U> = onRejected(reason);
+                } catch (er) {
                     promise2Reject(er);
                     return;
                 }
+
                 promise2.Resolve(x);
-            }
-            else {
+            } else {
                 promise2Reject(reason);
             }
         };
+
         if (this.state === State.FULFILLED) {
             invokeAsynch(newFulfilledHandler, this.value);
-        }
-        else if (this.state === State.REJECTED) {
+        } else if (this.state === State.REJECTED) {
             invokeAsynch(newRejectedHandler, this.reason);
-        }
-        else {
+        } else {
             this.fulfilledHandlers.push(newFulfilledHandler);
             this.rejectedHandlers.push(newRejectedHandler);
         }
+
         return promise2;
     };
-    ;
-    return Tomise;
-}());
-function resolved(value) {
+}
+
+
+export function resolved(value) {
     return new Tomise(function (resolve) {
         resolve(value);
     });
 }
-exports.resolved = resolved;
-function rejected(reason) {
+
+export function rejected(reason) {
     return new Tomise(function (resolve, reject) {
         reject(reason);
     });
 }
-exports.rejected = rejected;
-function deferred() {
+
+export function deferred() {
     var _resolve;
     var _reject;
     var promise = new Tomise(function (resolve, reject) {
         _resolve = resolve;
         _reject = reject;
     });
+
     return {
         promise: promise,
         resolve: _resolve,
         reject: _reject
-    };
+    }
 }
-exports.deferred = deferred;
