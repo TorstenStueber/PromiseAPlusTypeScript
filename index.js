@@ -23,9 +23,7 @@ var Tomise = (function () {
         this.reason = null;
         this.fulfilledHandlers = [];
         this.rejectedHandlers = [];
-        if (callback) {
-            callback(this.Resolve.bind(this), this.reject.bind(this));
-        }
+        callback(this.Resolve.bind(this), this.reject.bind(this));
     }
     Tomise.prototype.reject = function (reason) {
         if (this.state === State.PENDING) {
@@ -79,53 +77,49 @@ var Tomise = (function () {
         }
     };
     Tomise.prototype.then = function (onFulfilled, onRejected) {
-        var promise2Resolve;
-        var promise2Reject;
-        var promise2 = new Tomise(function (resolve, reject) {
-            promise2Resolve = resolve;
-            promise2Reject = reject;
+        var _this = this;
+        return new Tomise(function (resolve, reject) {
+            var newFulfilledHandler = function (value) {
+                if (isFunction(onFulfilled)) {
+                    try {
+                        var x = onFulfilled(value);
+                    }
+                    catch (er) {
+                        reject(er);
+                        return;
+                    }
+                    resolve(x);
+                }
+                else {
+                    resolve(value);
+                }
+            };
+            var newRejectedHandler = function (reason) {
+                if (isFunction(onRejected)) {
+                    try {
+                        var x = onRejected(reason);
+                    }
+                    catch (er) {
+                        reject(er);
+                        return;
+                    }
+                    resolve(x);
+                }
+                else {
+                    reject(reason);
+                }
+            };
+            if (_this.state === State.FULFILLED) {
+                invokeAsynch(newFulfilledHandler, _this.value);
+            }
+            else if (_this.state === State.REJECTED) {
+                invokeAsynch(newRejectedHandler, _this.reason);
+            }
+            else {
+                _this.fulfilledHandlers.push(newFulfilledHandler);
+                _this.rejectedHandlers.push(newRejectedHandler);
+            }
         });
-        var newFulfilledHandler = function wrapper(value) {
-            if (isFunction(onFulfilled)) {
-                try {
-                    var x = onFulfilled(value);
-                }
-                catch (er) {
-                    promise2Reject(er);
-                    return;
-                }
-                promise2.Resolve(x);
-            }
-            else {
-                promise2Resolve(value);
-            }
-        };
-        var newRejectedHandler = function wrapper(reason) {
-            if (isFunction(onRejected)) {
-                try {
-                    var x = onRejected(reason);
-                }
-                catch (er) {
-                    promise2Reject(er);
-                    return;
-                }
-                promise2.Resolve(x);
-            }
-            else {
-                promise2Reject(reason);
-            }
-        };
-        if (this.state === State.FULFILLED) {
-            invokeAsynch(newFulfilledHandler, this.value);
-        }
-        else if (this.state === State.REJECTED) {
-            invokeAsynch(newRejectedHandler, this.reason);
-        }
-        else {
-            this.fulfilledHandlers.push(newFulfilledHandler);
-            this.rejectedHandlers.push(newRejectedHandler);
-        }
-        return promise2;
     };
     ;
     return Tomise;
@@ -156,3 +150,4 @@ function deferred() {
     };
 }
 exports.deferred = deferred;
+//# sourceMappingURL=index.js.map

@@ -21,27 +21,19 @@ function invokeAsynch(handler, arg) {
 }
 
 interface Thenable<T> {
-    then<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Thenable<U>;
+    then<U>(onFulfilled?: (value: T | Thenable<T>) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Thenable<U>;
 }
 
 class Tomise<T> implements Thenable<T> {
 
-    state: State;
-    value: T;
-    reason: any;
-    fulfilledHandlers: ((value: T) => void)[];
-    rejectedHandlers: ((reason: any) => void)[];
+    state: State = State.PENDING;
+    value: T = null;
+    reason: any = null;
+    fulfilledHandlers: ((value: T) => void)[] = [];
+    rejectedHandlers: ((reason: any) => void)[] = [];
 
     constructor(callback: (resolve : (value?: T | Thenable<T>) => void, reject: (error?: any) => void) => void) {
-        this.state = State.PENDING;
-        this.value = null;
-        this.reason = null;
-        this.fulfilledHandlers = [];
-        this.rejectedHandlers = [];
-
-        if (callback) {
-            callback(this.Resolve.bind(this), this.reject.bind(this));
-        }
+        callback(this.Resolve.bind(this), this.reject.bind(this));
     }
 
     reject(reason) {
@@ -64,9 +56,12 @@ class Tomise<T> implements Thenable<T> {
         if (isObject(valueOrThenable) || isFunction(valueOrThenable)) {
             var callHappened = false;
             try {
-                var then: <U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>) => Thenable<U> = (<Thenable<T>>valueOrThenable).then;
+                var then: <U>(onFulfilled?: (value: T | Thenable<T>) => U | Thenable<U>,
+                    onRejected?: (error: any) => U | Thenable<U>)
+                    => Thenable<U>
+                    = (<Thenable<T>>valueOrThenable).then;
                 if (isFunction(then)) {
-                    then.call(valueOrThenable, (y: T) => {
+                    then.call(valueOrThenable, (y: T | Thenable<T>) => {
                         if (!callHappened) {
                             this.Resolve(y);
                             callHappened = true;
@@ -98,54 +93,46 @@ class Tomise<T> implements Thenable<T> {
     }
 
     then<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Tomise<T | U> {
-        var promise2Resolve: (value?: T | U | Thenable<T | U>) => void;
-        var promise2Reject: (error?: any) => void;
+        return new Tomise<T | U>((resolve, reject) => {
+            var newFulfilledHandler = (value: T) => {
+                if (isFunction(onFulfilled)) {
+                    try {
+                        var x: U | Thenable<U> = onFulfilled(value);
+                    } catch (er) {
+                        reject(er);
+                        return;
+                    }
 
-        var promise2 = new Tomise<T | U>(function(resolve, reject) {
-            promise2Resolve = resolve;
-            promise2Reject = reject;
+                    resolve(x);
+                } else {
+                    resolve(value);
+                }
+            };
+
+            var newRejectedHandler = (reason: any) => {
+                if (isFunction(onRejected)) {
+                    try {
+                        var x: U | Thenable<U> = onRejected(reason);
+                    } catch (er) {
+                        reject(er);
+                        return;
+                    }
+
+                    resolve(x);
+                } else {
+                    reject(reason);
+                }
+            };
+
+            if (this.state === State.FULFILLED) {
+                invokeAsynch(newFulfilledHandler, this.value);
+            } else if (this.state === State.REJECTED) {
+                invokeAsynch(newRejectedHandler, this.reason);
+            } else {
+                this.fulfilledHandlers.push(newFulfilledHandler);
+                this.rejectedHandlers.push(newRejectedHandler);
+            }
         });
-
-        var newFulfilledHandler = function wrapper(value: T) {
-            if (isFunction(onFulfilled)) {
-                try {
-                    var x: U | Thenable<U> = onFulfilled(value);
-                } catch (er) {
-                    promise2Reject(er);
-                    return;
-                }
-
-                promise2.Resolve(x);
-            } else {
-                promise2Resolve(value);
-            }
-        };
-
-        var newRejectedHandler = function wrapper(reason: any) {
-            if (isFunction(onRejected)) {
-                try {
-                    var x: U | Thenable<U> = onRejected(reason);
-                } catch (er) {
-                    promise2Reject(er);
-                    return;
-                }
-
-                promise2.Resolve(x);
-            } else {
-                promise2Reject(reason);
-            }
-        };
-
-        if (this.state === State.FULFILLED) {
-            invokeAsynch(newFulfilledHandler, this.value);
-        } else if (this.state === State.REJECTED) {
-            invokeAsynch(newRejectedHandler, this.reason);
-        } else {
-            this.fulfilledHandlers.push(newFulfilledHandler);
-            this.rejectedHandlers.push(newRejectedHandler);
-        }
-
-        return promise2;
     };
 }
 
