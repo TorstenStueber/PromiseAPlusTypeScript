@@ -7,6 +7,8 @@
 # Promises A+ in TypeScript
 This is a minimalist implementation of the Promises A+ specification in TypeScript.
 
+This project defines the class `Tomise` – a portmanteau of Torsten (my name) and Promise.
+
 Installation:
 ```
 npm install
