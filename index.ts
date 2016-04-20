@@ -21,7 +21,7 @@ function invokeAsynch(handler, arg) {
 }
 
 interface Thenable<T> {
-    then<U>(onFulfilled?: (value: T | Thenable<T>) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Thenable<U>;
+    then<U>(onFulfilled?: (value: T | Thenable<T>) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): Thenable<T|U>;
 }
 
 class Tomise<T> implements Thenable<T> {
