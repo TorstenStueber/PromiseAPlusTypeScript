@@ -4,8 +4,8 @@
          title="Promises/A+ 1.0 compliant" align="right" />
 </a>
 
-# Promises A+ in TypeScript
-This is a minimalist implementation of the Promises A+ specification in TypeScript.
+# Promises/A+ in TypeScript
+This is a minimalist implementation of the Promises/A+ specification in TypeScript.
 
 This project defines the class `Tomise` – a portmanteau of Torsten (my name) and Promise.
 
